@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <title>Sense Miner ile Açık Hava Basıncı Simülasyonu</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      height: 100vh;
+      margin: 0;
+      background: linear-gradient(to top, #cce5ff, #e6f2ff);
+      padding: 20px;
+    }
+    .container {
+      display: flex;
+      flex-direction: row;
+      gap: 10px;
+    }
+    .building {
+      position: relative;
+      width: 150px;
+      height: 500px;
+      background-color: #999;
+      border: 3px solid #555;
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+    .ruler {
+      width: 60px;
+      height: 500px;
+      display: flex;
+      flex-direction: column-reverse;
+      font-size: 12px;
+      text-align: right;
+      padding-right: 5px;
+    }
+    .ruler div {
+      height: 50px;
+    }
+    .floor {
+      position: absolute;
+      width: 100%;
+      height: 50px;
+      border-top: 1px dashed #333;
+      box-sizing: border-box;
+      display: flex;
+      justify-content: flex-start;
+      align-items: center;
+      padding-left: 5px;
+      color: white;
+      font-size: 12px;
+    }
+    .sensor {
+      position: absolute;
+      width: 40px;
+      height: 60px;
+      left: 50%;
+      transform: translateX(-50%);
+      transition: top 1s ease;
+    }
+    .sensor img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+    .child {
+      position: absolute;
+      top: -60px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 14px;
+      background: #ffd;
+      padding: 5px 10px;
+      border: 1px solid #888;
+      border-radius: 6px;
+    }
+    .rope {
+      position: absolute;
+      width: 2px;
+      background-color: black;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      transition: height 1s ease;
+    }
+    .info {
+      font-size: 18px;
+      margin-bottom: 10px;
+    }
+    button {
+      margin-top: 10px;
+      padding: 10px 20px;
+      font-size: 16px;
+    }
+    #chartContainer {
+      width: 400px;
+      height: 300px;
+      margin-top: 20px;
+      background-color: white;
+      padding: 10px;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="info">
+    Kat: <span id="floorDisplay">9</span> | Basınç: <span id="pressureDisplay">101.30</span> kPa
+  </div>
+
+  <div class="container">
+    <div class="ruler" id="ruler"></div>
+    <div class="building" id="building">
+      <div class="child">👦 Sepeti indiriyor...</div>
+      <div class="rope" id="rope"></div>
+      <div class="sensor" id="sensor">
+        <img src="sense-miner.jpg" alt="Sense Miner Cihazı">
+      </div>
+    </div>
+  </div>
+
+  <button onclick="autoDropSensor()">Sepeti Otomatik İndir</button>
+
+  <div id="chartContainer">
+    <canvas id="pressureChart"></canvas>
+  </div>
+
+  <script>
+    const building = document.getElementById('building');
+    const ruler = document.getElementById('ruler');
+    const sensor = document.getElementById('sensor');
+    const rope = document.getElementById('rope');
+    const floorDisplay = document.getElementById('floorDisplay');
+    const pressureDisplay = document.getElementById('pressureDisplay');
+    const totalFloors = 10;
+    const floorHeight = 50;
+    let floorLabels = [];
+    let pressureData = [];
+
+    for (let i = 0; i < totalFloors; i++) {
+      const floor = document.createElement('div');
+      floor.className = 'floor';
+      floor.style.top = `${i * floorHeight}px`;
+      floor.textContent = `${totalFloors - 1 - i}. Kat`;
+      building.appendChild(floor);
+
+      const rulerMark = document.createElement('div');
+      rulerMark.textContent = `${(i * 3).toFixed(1)} m`;
+      ruler.appendChild(rulerMark);
+    }
+
+    function getPressure(floor) {
+      const seaLevelPressure = 101.3;
+      const pressureIncreasePerFloor = 0.12;
+      return (seaLevelPressure + (floor * pressureIncreasePerFloor)).toFixed(2);
+    }
+
+    const ctx = document.getElementById('pressureChart').getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: floorLabels,
+        datasets: [{
+          label: 'Basınç (kPa)',
+          data: pressureData,
+          fill: false,
+          borderColor: 'blue',
+          tension: 0.1
+        }]
+      },
+      options: {
+        scales: {
+          y: {
+            beginAtZero: false,
+            suggestedMin: 100,
+            suggestedMax: 103
+          }
+        }
+      }
+    });
+
+    function updateSensor(floorIndex) {
+      const newTop = floorIndex * floorHeight;
+      const pressure = getPressure(floorIndex);
+
+      sensor.style.top = `${newTop}px`;
+      rope.style.height = `${newTop + 20}px`;
+      floorDisplay.textContent = totalFloors - 1 - floorIndex;
+      pressureDisplay.textContent = pressure;
+
+      floorLabels.push(`${totalFloors - 1 - floorIndex}. Kat`);
+      pressureData.push(pressure);
+      chart.update();
+    }
+
+    function autoDropSensor() {
+      let delay = 0;
+      for (let i = 0; i < totalFloors; i++) {
+        setTimeout(() => updateSensor(i), delay);
+        delay += 1500;
+      }
+    }
+  </script>
+</body>
+</html>
