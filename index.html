@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="tr">
 <head>
   <meta charset="UTF-8">
@@ -14,7 +14,7 @@
       height: 100vh;
     }
     #left {
-      width: 300px;
+      width: 30%;
       background: #f0f0f0;
       position: relative;
       border-right: 2px solid #ccc;
@@ -37,7 +37,8 @@
       height: 40px;
       background: url('basket.png') no-repeat center/contain;
       position: absolute;
-      left: 130px;
+      left: 50%;
+      transform: translateX(-50%);
       cursor: grab;
     }
     #right {
@@ -45,10 +46,10 @@
       padding: 12px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      justify-content: space-between;
     }
     #pressureValue {
-      font-size: 32px;
+      font-size: 48px;
       font-weight: bold;
     }
     #dataTable {
@@ -64,22 +65,44 @@
       padding: 8px 16px;
       font-size: 14px;
     }
+    #top-section {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    #chart-container, #table-container {
+      height: 35vh;
+    }
+    canvas {
+      width: 100% !important;
+      height: 100% !important;
+    }
+    #table-container {
+      overflow-y: auto;
+    }
   </style>
 </head>
 <body>
   <div id="left"></div>
   <div id="right">
-    <div>
-      <div>Açık Hava Basıncı (kPa):</div>
-      <div id="pressureValue">-</div>
-      <div id="measurementCount">Toplam Ölçüm: 0</div>
-      <button onclick="resetAll()">Sıfırla</button>
+    <div id="top-section">
+      <div>
+        <div>Açık Hava Basıncı (kPa):</div>
+        <div id="pressureValue">-</div>
+        <div id="measurementCount">Toplam Ölçüm: 0</div>
+        <button onclick="resetAll()">Sıfırla</button>
+      </div>
     </div>
-    <canvas id="pressureChart"></canvas>
-    <table id="dataTable">
-      <thead><tr><th>No</th><th>Basınç (kPa)</th></tr></thead>
-      <tbody></tbody>
-    </table>
+    <div id="chart-container">
+      <canvas id="pressureChart"></canvas>
+    </div>
+    <div id="table-container">
+      <table id="dataTable">
+        <thead><tr><th>No</th><th>Basınç (kPa)</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
   </div>
 
   <script>
@@ -136,6 +159,8 @@
         }]
       },
       options: {
+        responsive: true,
+        maintainAspectRatio: false,
         scales: {
           y: { min: 0, max: 125 }
         }
@@ -187,4 +212,5 @@
   </script>
 </body>
 </html>
+
 
