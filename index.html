@@ -1,218 +1,276 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8">
-  <title>Basınç Simülasyonu (Web)</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      display: flex;
-      height: 100vh;
-    }
-    #left {
-      width: 30%;
-      background: #f0f0f0;
-      position: relative;
-      border-right: 2px solid #ccc;
-    }
-    .floor-line {
-      position: absolute;
-      left: 0;
-      width: 100%;
-      height: 1px;
-      background: #aaa;
-    }
-    .floor-label {
-      position: absolute;
-      left: 5px;
-      font-size: 12px;
-      color: #333;
-    }
-    #basket {
-      width: 150px;
-      height: 150px;
-      background: url('basket.png') no-repeat center/contain;
-      position: absolute;
-      left: 50%;
-      transform: translateX(-50%);
-      cursor: grab;
-    }
-    #right {
-      flex-grow: 1;
-      padding: 12px;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-    }
-    #pressureValue {
-      font-size: 72px;
-      font-weight: bold;
-    }
-    #dataTable {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    #dataTable th, #dataTable td {
-      border: 1px solid #ccc;
-      padding: 4px 8px;
-      text-align: center;
-    }
-    button {
-      padding: 8px 16px;
-      font-size: 14px;
-    }
-    #top-section {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-    #chart-container, #table-container {
-      height: 25vh;
-    }
-    canvas {
-      width: 100% !important;
-      height: 100% !important;
-    }
-    #table-container {
-      overflow-y: auto;
-    }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Açık Hava Basıncı – Basit Ortaokul Sürümü (v7)</title>
+<style>
+  :root{
+    --bg:#fff; --panel:#f6f8fb; --border:#e5e7eb; --text:#111827; --muted:#6b7280;
+    --accent:#2563eb; --warn:#ef4444;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial}
+  .app{max-width:1100px;margin:20px auto;padding:0 12px;
+       display:grid;grid-template-columns:minmax(520px,1.2fr) minmax(380px,1fr);gap:16px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px}
+  .stage{position:relative}
+  .stage canvas{width:100%;aspect-ratio:4/3;display:block;background:#fff;border:1px solid var(--border);border-radius:10px}
+  .panel h3{margin:6px 0 10px 0;font-size:18px}
+  .kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .kpi{background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px}
+  .kpi .t{font-size:13px;color:var(--muted)}
+  .kpi .v{font-size:24px;font-weight:800}
+  .row{display:flex;align-items:center;gap:10px;margin:10px 0}
+  .row label{min-width:108px;color:var(--muted)}
+  input[type=range]{width:100%}
+  .preset{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+  .btn{border:1px solid var(--border);background:#fff;padding:7px 10px;border-radius:10px;cursor:pointer}
+  .btn:hover{background:#f3f4f6}
+  #chart{width:100%;height:160px;background:#fff;border:1px solid var(--border);border-radius:10px}
+  .hint{font-size:13px;color:var(--muted);background:#fff;border:1px dashed var(--border);border-radius:10px;padding:8px}
+</style>
 </head>
 <body>
-  <div id="left"></div>
-  <div id="right">
-    <div id="top-section">
-      <div>
-        <div>Açık Hava Basıncı (kPa):</div>
-        <div id="pressureValue">-</div>
-        <div id="measurementCount">Toplam Ölçüm: 0</div>
-        <button onclick="resetAll()">Sıfırla</button>
+  <main class="app">
+    <!-- SOL: SAHNE -->
+    <section class="card stage" aria-label="Simülasyon Sahnesi">
+      <canvas id="stage"></canvas>
+    </section>
+
+    <!-- SAĞ: KONTROLLER -->
+    <aside class="card panel">
+      <div class="kpis">
+        <div class="kpi"><div class="t">🌍 Atmosfer Basıncı (atm)</div><div class="v" id="kpiAtm">1.00</div></div>
+        <div class="kpi"><div class="t">🔥 Kaynama Noktası (°C)</div><div class="v" id="kpiBoil">100.0</div></div>
+        <div class="kpi"><div class="t">⛰️ Rakım (m)</div><div class="v" id="kpiAlt">0</div></div>
+        <div class="kpi"><div class="t">Δh (U-manometre, mmHg)</div><div class="v" id="kpiDh">0</div></div>
       </div>
-    </div>
-    <div id="chart-container">
-      <canvas id="pressureChart"></canvas>
-    </div>
-    <div id="table-container">
-      <table id="dataTable">
-        <thead><tr><th>No</th><th>Basınç (kPa)</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  </div>
 
-  <script>
-    const FLOORS = 4;
-    const FLOOR_HEIGHT = 150; // px
-    const BASKET_HEIGHT = 150;
-    const container = document.getElementById("left");
-    const basket = document.createElement("div");
-    basket.id = "basket";
-    container.appendChild(basket);
+      <h3>Kontroller</h3>
+      <div class="row">
+        <label for="slAlt">Rakım</label>
+        <input id="slAlt" type="range" min="0" max="9000" step="100" value="0">
+        <span id="altVal">0 m</span>
+      </div>
+      <div class="row">
+        <label for="slDP">Hava ΔP</label>
+        <input id="slDP" type="range" min="-20" max="20" step="1" value="0">
+        <span id="dpVal">0 hPa</span>
+      </div>
+      <div class="preset">
+        <button class="btn" data-alt="0" data-dp="0">Deniz Seviyesi</button>
+        <button class="btn" data-alt="1500" data-dp="-5">Yayla</button>
+        <button class="btn" data-alt="3000" data-dp="-10">Dağ</button>
+        <button class="btn" data-alt="5000" data-dp="-15">Zirve</button>
+      </div>
 
-    // Kat çizgileri
-    for (let i = 0; i <= FLOORS; i++) {
-      const y = i * FLOOR_HEIGHT;
-      const line = document.createElement("div");
-      line.className = "floor-line";
-      line.style.top = y + "px";
-      container.appendChild(line);
+      <h3>Rakım–Basınç Eğrisi</h3>
+      <canvas id="chart"></canvas>
 
-      if (i < FLOORS) {
-        const label = document.createElement("div");
-        label.className = "floor-label";
-        label.style.top = (y + 5) + "px";
-        label.textContent = i === FLOORS - 1 ? "Zemin Kat" : `Kat ${FLOORS - 2 - i}`;
-        container.appendChild(label);
-      }
-    }
+      <p class="hint">Rakım ↑ → <b>basınç</b> ↓ → suyun <b>kaynama sıcaklığı</b> ↓. Hava ΔP değeri, yüksek/alçak basınç sistemlerinin etkisini (±hPa) temsil eder.</p>
+    </aside>
+  </main>
 
-    // Drag
-    let offsetY = 0;
-    basket.onmousedown = e => {
-      offsetY = e.offsetY;
-      document.onmousemove = e2 => {
-        let newY = e2.clientY - container.getBoundingClientRect().top - offsetY;
-        const maxY = FLOOR_HEIGHT * FLOORS - BASKET_HEIGHT;
-        newY = Math.max(10, Math.min(newY, maxY));
-        basket.style.top = newY + "px";
-        updatePressure();
-      };
-      document.onmouseup = () => document.onmousemove = null;
-    };
+<script>
+/* ===== Basit Fizik Yardımcıları ===== */
+const P0   = 101325;    // Pa (deniz seviyesi)
+const H    = 8400;      // m (ölçek yüksekliği)
+const ATM  = 101325;    // Pa/atm
+const HPA  = 100;       // 1 hPa = 100 Pa
+const MMHG = 133.322;   // 1 mmHg = 133.322 Pa
 
-    // Grafik
-    const ctx = document.getElementById('pressureChart').getContext('2d');
-    const chart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: [],
-        datasets: [{
-          label: 'Basınç (kPa)',
-          data: [],
-          borderColor: 'blue',
-          borderWidth: 2,
-          fill: false
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-          y: { min: 0, max: 125 }
-        }
-      }
-    });
+const paAt = (alt_m, dP_hPa) => P0*Math.exp(-alt_m/H) + dP_hPa*HPA;
+const atmAt = (alt_m, dP_hPa) => paAt(alt_m, dP_hPa)/ATM;
 
-    let readingCount = 0;
-    const measuredFloors = new Set();
+// Antoine (su, 1–100°C): T(°C) = B/(A - log10(PmmHg)) - C, PmmHg = P_atm*760
+function boilC_from_atm(p_atm){
+  const A=8.07131, B=1730.63, C=233.426;
+  const Pmm = p_atm*760;
+  return B/(A - Math.log10(Pmm)) - C;
+}
 
-    function updatePressure() {
-      const basketY = parseFloat(basket.style.top);
-      const altitudePx = FLOOR_HEIGHT * FLOORS - (basketY + BASKET_HEIGHT / 2);
-      const altitudeMeters = altitudePx / 40.0;
-      const pressure = 101.3 - 0.12 * altitudeMeters;
+/* ===== Durum ===== */
+const state = { alt:0, dP:0, atm:1.0, boil:100, dh:0 };
 
-      document.getElementById("pressureValue").textContent = pressure.toFixed(1);
+/* ===== Kanvas yardımcıları ===== */
+function fitCanvas(el){
+  const dpr = Math.max(1, window.devicePixelRatio||1);
+  const r = el.getBoundingClientRect();
+  el.width = Math.round(r.width*dpr);
+  el.height = Math.round(r.height*dpr);
+  const ctx = el.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0); // CSS pikselinde çiz
+  return ctx;
+}
 
-      // Hangi katta olduğumuzu bul
-      const currentFloor = Math.floor((FLOORS * FLOOR_HEIGHT - basketY - BASKET_HEIGHT / 2) / FLOOR_HEIGHT);
-      if (measuredFloors.has(currentFloor)) return;
+/* ===== Elemanlar ===== */
+const stage = document.getElementById('stage');
+const chart = document.getElementById('chart');
+let sctx = fitCanvas(stage);
+let cctx = fitCanvas(chart);
 
-      measuredFloors.add(currentFloor);
-      readingCount++;
-      chart.data.labels.push(readingCount);
-      chart.data.datasets[0].data.push(pressure);
-      chart.update();
+const slAlt = document.getElementById('slAlt');
+const slDP  = document.getElementById('slDP');
+const altVal = document.getElementById('altVal');
+const dpVal  = document.getElementById('dpVal');
+const kpiAtm = document.getElementById('kpiAtm');
+const kpiBoil= document.getElementById('kpiBoil');
+const kpiAlt = document.getElementById('kpiAlt');
+const kpiDh  = document.getElementById('kpiDh');
 
-      const row = document.createElement("tr");
-      row.innerHTML = `<td>${readingCount}</td><td>${pressure.toFixed(1)}</td>`;
-      document.querySelector("#dataTable tbody").appendChild(row);
+/* ===== Çizimler ===== */
+function drawStage(){
+  const w = stage.getBoundingClientRect().width;
+  const h = stage.getBoundingClientRect().height;
+  sctx.clearRect(0,0,w,h);
 
-      document.getElementById("measurementCount").textContent = `Toplam Ölçüm: ${readingCount}`;
-    }
+  // 1) Atmosfer sütunu (sol panel görünümü)
+  const colX=18, colY=18, colW=90, colH=h-36;
+  const grad = sctx.createLinearGradient(0,colY,0,colY+colH);
+  grad.addColorStop(0,'rgba(37,99,235,0.15)');
+  grad.addColorStop(1,'rgba(37,99,235,0.65)');
+  sctx.fillStyle='#fff';
+  sctx.strokeStyle='#e5e7eb';
+  sctx.lineWidth=1;
+  sctx.beginPath(); roundRect(sctx,colX,colY,colW,colH,12); sctx.fill(); sctx.stroke();
+  sctx.fillStyle=grad;
+  sctx.beginPath(); roundRect(sctx,colX+6,colY+6,colW-12,colH-12,10); sctx.fill();
+  sctx.fillStyle='#6b7280'; sctx.font='12px system-ui';
+  sctx.fillText('Atmosfer', colX+8, colY-4);
 
-    function resetAll() {
-      readingCount = 0;
-      measuredFloors.clear();
-      chart.data.labels = [];
-      chart.data.datasets[0].data = [];
-      chart.update();
-      document.querySelector("#dataTable tbody").innerHTML = "";
-      document.getElementById("measurementCount").textContent = "Toplam Ölçüm: 0";
-      document.getElementById("pressureValue").textContent = "-";
-      basket.style.top = "10px";
-    }
+  // 2) U-manometre (çıva yerine mmHg farkı görselleştirme)
+  const baseY = h-30, topY = 30, left = colX+colW+24, right = left+44, rad = 10;
+  const dh_mm = state.dh; // yönlü olsun: P0 - P_atm > 0 → sağ kol yüksek
+  const scale = 0.45; const maxLeg = baseY - topY - 18;
+  const dPix = Math.max(-maxLeg, Math.min(maxLeg, dh_mm*scale));
+  // cam
+  sctx.strokeStyle='#cbd5e1'; sctx.lineWidth=8; sctx.lineCap='round';
+  sctx.beginPath();
+  sctx.moveTo(left, topY); sctx.lineTo(left, baseY-rad);
+  sctx.arc((left+right)/2, baseY-rad, (right-left)/2-2, Math.PI, 0);
+  sctx.lineTo(right, topY); sctx.stroke();
+  // sıvı seviyeleri
+  sctx.strokeStyle='#2563eb'; sctx.lineWidth=8;
+  sctx.beginPath();
+  sctx.moveTo(left, baseY);  sctx.lineTo(left, baseY-70 + dPix/2);
+  sctx.moveTo(right, baseY); sctx.lineTo(right, baseY-70 - dPix/2);
+  sctx.stroke();
+  sctx.fillStyle='#111827'; sctx.font='12px system-ui';
+  sctx.fillText(`Δh ≈ ${Math.abs(dh_mm).toFixed(0)} mmHg`, (left+right)/2-42, topY-8);
 
-    // İlk konum
-    basket.style.top = "10px";
-  </script>
+  // 3) Basit kadran (sağ üst)
+  const cx = w-120, cy = 90, R=62;
+  // çerçeve
+  sctx.fillStyle='#fff'; sctx.strokeStyle='#e5e7eb';
+  sctx.beginPath(); sctx.arc(cx,cy,R+14,0,Math.PI*2); sctx.fill(); sctx.stroke();
+  // tickler
+  const a0=Math.PI*0.75, a1=Math.PI*0.25;
+  for(let i=0;i<=10;i++){
+    const a = a0+(a1-a0)*(i/10), r0=R-8, r1=R+4;
+    sctx.beginPath();
+    sctx.moveTo(cx+r0*Math.cos(a), cy+r0*Math.sin(a));
+    sctx.lineTo(cx+r1*Math.cos(a), cy+r1*Math.sin(a));
+    sctx.strokeStyle='#9ca3af'; sctx.lineWidth=(i%5===0)?2:1; sctx.stroke();
+  }
+  // iğne
+  const atm = Math.max(0, Math.min(1.1, state.atm));
+  const ang = a0 + (a1-a0)*(atm/1.1);
+  sctx.strokeStyle='#ef4444'; sctx.lineWidth=3;
+  sctx.beginPath(); sctx.moveTo(cx-6*Math.cos(ang), cy-6*Math.sin(ang));
+  sctx.lineTo(cx+(R-2)*Math.cos(ang), cy+(R-2)*Math.sin(ang)); sctx.stroke();
+  sctx.fillStyle='#111827'; sctx.beginPath(); sctx.arc(cx,cy,5,0,Math.PI*2); sctx.fill();
+
+  // 4) Küçük açıklamalar
+  sctx.fillStyle='#111827'; sctx.font='13px system-ui';
+  sctx.fillText(`P_atm = ${state.atm.toFixed(2)} atm`, cx-62, cy+R+24);
+  sctx.fillText(`Kaynama ≈ ${state.boil.toFixed(1)} °C`, cx-74, cy+R+42);
+}
+
+// yumuşak köşe dikdörtgen
+function roundRect(ctx,x,y,w,h,r){ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);}
+
+/* Basit çizgisel graf */
+function drawChart(){
+  const w = chart.getBoundingClientRect().width, h = chart.getBoundingClientRect().height;
+  cctx.clearRect(0,0,w,h);
+  // çerçeve & grid
+  cctx.fillStyle='#fff'; cctx.strokeStyle='#e5e7eb';
+  roundRect(cctx,8,8,w-16,h-16,10); cctx.fill(); cctx.stroke();
+  const left=28, right=w-28, top=22, bottom=h-26;
+  cctx.strokeStyle='#e5e7eb';
+  for(let i=0;i<=4;i++){ const y=bottom-(bottom-top)*i/4; cctx.beginPath(); cctx.moveTo(left,y); cctx.lineTo(right,y); cctx.stroke(); }
+  // eğri
+  const maxAlt=9000, N=60;
+  cctx.beginPath();
+  for(let i=0;i<=N;i++){
+    const alt=i/N*maxAlt;
+    const atm = atmAt(alt, state.dP);
+    const x = left + (right-left)*i/N;
+    const y = bottom - (bottom-top)*(Math.max(0,Math.min(1.1,atm))/1.1);
+    i===0 ? cctx.moveTo(x,y) : cctx.lineTo(x,y);
+  }
+  cctx.strokeStyle= '#2563eb'; cctx.lineWidth=2; cctx.stroke();
+  // işaretçi
+  const xM = left + (right-left)*(state.alt/maxAlt);
+  const yM = bottom - (bottom-top)*(Math.max(0,Math.min(1.1,state.atm))/1.1);
+  cctx.fillStyle='#ca8a04'; cctx.beginPath(); cctx.arc(xM,yM,4,0,Math.PI*2); cctx.fill();
+  // eksen etiketleri
+  cctx.fillStyle='#6b7280'; cctx.font='12px system-ui';
+  cctx.fillText('Rakım (m)', w/2-32, h-6);
+  cctx.save(); cctx.translate(12,h/2); cctx.rotate(-Math.PI/2); cctx.fillText('Basınç (atm)', -34,0); cctx.restore();
+}
+
+/* ===== Hesapla + UI güncelle ===== */
+function recalc(){
+  state.atm  = atmAt(state.alt, state.dP);
+  state.boil = boilC_from_atm(state.atm);
+  state.dh   = (P0 - paAt(state.alt, state.dP)) / MMHG; // mmHg farkı (1 atm referansa göre)
+
+  // KPI'lar
+  kpiAtm.textContent = state.atm.toFixed(2);
+  kpiBoil.textContent= state.boil.toFixed(1);
+  kpiAlt.textContent = Math.round(state.alt);
+  kpiDh.textContent  = Math.abs(state.dh).toFixed(0);
+  // anlık değer etiketleri
+  altVal.textContent = `${Math.round(state.alt)} m`;
+  dpVal.textContent  = `${Math.round(state.dP)} hPa`;
+
+  drawStage();
+  drawChart();
+}
+
+/* ===== Etkileşim ===== */
+slAlt.addEventListener('input', e=>{ state.alt = +e.target.value; recalc(); });
+slDP .addEventListener('input', e=>{ state.dP  = +e.target.value;  recalc(); });
+document.querySelectorAll('.preset .btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    state.alt = +btn.dataset.alt; state.dP = +btn.dataset.dp;
+    slAlt.value = state.alt; slDP.value = state.dP; recalc();
+  });
+});
+window.addEventListener('resize', ()=>{ sctx=fitCanvas(stage); cctx=fitCanvas(chart); drawStage(); drawChart(); });
+
+/* ===== Başlat ===== */
+(function init(){
+  slAlt.value = 0; slDP.value = 0; state.alt=0; state.dP=0; recalc();
+})();
+
+/* ===== Mini Self-Tests (konsolda) ===== */
+(function tests(){
+  const near=(a,b,e)=>Math.abs(a-b)<=e;
+  console.log('%cSelf-test…','color:#2563eb');
+  console.assert( near(atmAt(0,0),1.00,0.02),'Deniz seviyesi ~1 atm');
+  console.assert( near(atmAt(8400,0), Math.E**-1,0.03),'H≈8400 m → e^-1 atm');
+  console.assert( near(boilC_from_atm(1.0),100,1.2),'1 atm → ~100°C');
+  console.assert( (P0 - paAt(0,0))/MMHG < 0.5, 'Δh≈0 mmHg deniz seviyesinde');
+  console.log('%cOK','color:#16a34a');
+})();
+</script>
 </body>
 </html>
+
 
 
 
